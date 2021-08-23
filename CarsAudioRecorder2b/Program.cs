@@ -72,13 +72,13 @@ namespace CarsAudioRecorder2b
 
                 //NAudio.Wave.WaveFormat opus_format4 = new NAudio.Wave.WaveFormat(48000, 16, 4);
 
-                int chanel_count;
+                int channel_count;
 
-                chanel_count = 4;
-                NAudio.Wave.WaveFormat opus_format4 = NAudio.Wave.WaveFormat.CreateCustomFormat(NAudio.Wave.WaveFormatEncoding.Pcm, 48000, chanel_count, 48000 * chanel_count * 2, chanel_count * 2, 16);
+                channel_count = 4;
+                NAudio.Wave.WaveFormat opus_format4 = NAudio.Wave.WaveFormat.CreateCustomFormat(NAudio.Wave.WaveFormatEncoding.Pcm, 48000, channel_count, 48000 * channel_count * 2, channel_count * 2, 16);
 
-                chanel_count = 1;
-                NAudio.Wave.WaveFormat opus_format1 = NAudio.Wave.WaveFormat.CreateCustomFormat(NAudio.Wave.WaveFormatEncoding.Pcm, 48000, chanel_count, 48000 * chanel_count * 2, chanel_count * 2, 16);
+                channel_count = 1;
+                NAudio.Wave.WaveFormat opus_format1 = NAudio.Wave.WaveFormat.CreateCustomFormat(NAudio.Wave.WaveFormatEncoding.Pcm, 48000, channel_count, 48000 * channel_count * 2, channel_count * 2, 16);
 
                 NAudio.Wave.WaveFileWriter[] wave = new NAudio.Wave.WaveFileWriter[4];
 
