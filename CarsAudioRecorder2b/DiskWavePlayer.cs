@@ -15,6 +15,7 @@ namespace CarsAudioRecorder2b
 
         private PlaybackState _PlaybackState = PlaybackState.Stopped;
         public PlaybackState PlaybackState => _PlaybackState;
+        private object StateLock = new object();
 
 
         public event EventHandler<StoppedEventArgs> PlaybackStopped;
@@ -36,32 +37,45 @@ namespace CarsAudioRecorder2b
         public void Init(IWaveProvider waveProvider)
         {
             _WaveProvider = waveProvider;
-            wave = new WaveFileWriter(filename, _WaveProvider.WaveFormat);
+
+            //WaveFormat format = new WaveFormat(_WaveProvider.WaveFormat);
+
+            WaveFormat format = WaveFormat.CreateCustomFormat(WaveFormatEncoding.MpegLayer3, 44100, 1, 128 / 8, 1024, 16);
+
+            //wave = new WaveFileWriter(filename, _WaveProvider.WaveFormat);
+            wave = new WaveFileWriter(filename, format);
 
             Thread thread = new Thread(() =>
             {
                 while (_PlaybackState == PlaybackState.Stopped)
                 {
+                    lock (StateLock)
+                    {
+                    }
+
                     Thread.Sleep(100);
                 }
 
                 while (_PlaybackState != PlaybackState.Stopped)
                 {
-                    byte[] buffer = new byte[_WaveProvider.WaveFormat.AverageBytesPerSecond];
-
-                    while (true)
+                    lock (StateLock)
                     {
-                        int count = _WaveProvider.Read(buffer, 0, buffer.Length);
-                        
+                        byte[] buffer = new byte[_WaveProvider.WaveFormat.AverageBytesPerSecond];
 
-                        Console.WriteLine($"buffer.Length is {buffer.Length}, count is {count}");
-
-                        if (count == 0)
+                        while (true)
                         {
-                            break;
+                            int count = _WaveProvider.Read(buffer, 0, buffer.Length);
+
+
+                            Console.WriteLine($"filename is {filename}, count is {count}");
+
+                            if (count == 0)
+                            {
+                                break;
+                            }
+
+                            wave.Write(buffer, 0, count);
                         }
-                        
-                        wave.Write(buffer, 0, count);
                     }
 
                     Thread.Sleep(100);
@@ -76,17 +90,26 @@ namespace CarsAudioRecorder2b
 
         public void Pause()
         {
-            _PlaybackState = PlaybackState.Paused;
+            lock (StateLock)
+            {
+                _PlaybackState = PlaybackState.Paused;
+            }
         }
 
         public void Play()
         {
-            _PlaybackState = PlaybackState.Playing;
+            lock (StateLock)
+            {
+                _PlaybackState = PlaybackState.Playing;
+            }
         }
 
         public void Stop()
         {
-            _PlaybackState = PlaybackState.Stopped;
+            lock (StateLock)
+            {
+                _PlaybackState = PlaybackState.Stopped;
+            }
 
             // do we need to raise PlaybackStopped?
         }

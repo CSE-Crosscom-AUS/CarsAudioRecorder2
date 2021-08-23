@@ -60,31 +60,52 @@ namespace CarsAudioRecorder2b
             using (NAudio.CoreAudioApi.WasapiCapture capture = new NAudio.CoreAudioApi.WasapiCapture(InputDevice))
             {
 
-                NAudio.Wave.BufferedWaveProvider bwp = new NAudio.Wave.BufferedWaveProvider(capture.WaveFormat);
-                bwp.ReadFully = false;
+                NAudio.Wave.BufferedWaveProvider[] bwp = new NAudio.Wave.BufferedWaveProvider[4];
 
-                NAudio.Wave.IWaveProvider[] inputs = new NAudio.Wave.IWaveProvider[] { bwp, };
+                for (int i = 0; i < bwp.Length; i++)
+                {
+                    bwp[i] = new NAudio.Wave.BufferedWaveProvider(capture.WaveFormat);
+                    bwp[i].ReadFully = false;
+                }
 
-                NAudio.Wave.MultiplexingWaveProvider mwp = new NAudio.Wave.MultiplexingWaveProvider(inputs, 1);
-                mwp.ConnectInputToOutput(0, 0);
 
 
-                //NAudio.Wave.WaveFileWriter wave = new NAudio.Wave.WaveFileWriter("out.wav", capture.WaveFormat);
+
+
+
+                NAudio.Wave.MultiplexingWaveProvider[] mwp = new NAudio.Wave.MultiplexingWaveProvider[4];
+
+                for (int i = 0; i < mwp.Length; i++)
+                {
+                    mwp[i] = new NAudio.Wave.MultiplexingWaveProvider(new NAudio.Wave.IWaveProvider[] { bwp[i], }, 1);
+                    mwp[i].ConnectInputToOutput(i, 0);
+                }
+
+
 
 
 
                 capture.DataAvailable += (object sender, NAudio.Wave.WaveInEventArgs e) =>
                 {
-                    bwp.AddSamples(e.Buffer, 0, e.BytesRecorded);
+                    for (int i = 0; i < bwp.Length; i++)
+                    {
+                        bwp[i].AddSamples(e.Buffer, 0, e.BytesRecorded);
+                    }
                 };
 
 
 
-                NAudio.Wave.IWavePlayer wo = new DiskWavePlayer("out.wav");
+                NAudio.Wave.IWavePlayer[] wo = new DiskWavePlayer[4];
 
-                wo.Init(mwp);
+                for (int i = 0; i < wo.Length; i++)
+                {
+                    wo[i] = new DiskWavePlayer($"out{i}.wav");
 
-                wo.Play();
+                    wo[i].Init(mwp[i]);
+                    wo[i].Play();
+                }
+
+
 
                 capture.StartRecording();
 
@@ -101,7 +122,12 @@ namespace CarsAudioRecorder2b
 
                 capture.StopRecording();
 
-                wo.Stop();
+
+                for (int i = 0; i < wo.Length; i++)
+                {
+                    wo[i].Stop();
+                    wo[i].Dispose();
+                }
 
             }
         }
