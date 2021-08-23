@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace CarsAudioRecorder2b
@@ -58,23 +59,50 @@ namespace CarsAudioRecorder2b
         {
             using (NAudio.CoreAudioApi.WasapiCapture capture = new NAudio.CoreAudioApi.WasapiCapture(InputDevice))
             {
-                NAudio.Wave.WaveFileWriter wave = new NAudio.Wave.WaveFileWriter("out.wav", capture.WaveFormat);
+
+                NAudio.Wave.BufferedWaveProvider bwp = new NAudio.Wave.BufferedWaveProvider(capture.WaveFormat);
+                bwp.ReadFully = false;
+
+                NAudio.Wave.IWaveProvider[] inputs = new NAudio.Wave.IWaveProvider[] { bwp, };
+
+                NAudio.Wave.MultiplexingWaveProvider mwp = new NAudio.Wave.MultiplexingWaveProvider(inputs, 1);
+                mwp.ConnectInputToOutput(0, 0);
+
+
+                //NAudio.Wave.WaveFileWriter wave = new NAudio.Wave.WaveFileWriter("out.wav", capture.WaveFormat);
 
 
 
                 capture.DataAvailable += (object sender, NAudio.Wave.WaveInEventArgs e) =>
                 {
-                    wave.Write(e.Buffer, 0, e.BytesRecorded);
+                    bwp.AddSamples(e.Buffer, 0, e.BytesRecorded);
                 };
 
 
+
+                NAudio.Wave.IWavePlayer wo = new DiskWavePlayer("out.wav");
+
+                wo.Init(mwp);
+
+                wo.Play();
+
                 capture.StartRecording();
 
-                Console.ReadKey();
+                while (true)
+                {
+                    if (Console.KeyAvailable)
+                    {
+                        break;
+                    }
+                    Thread.Sleep(100);
+                    Console.WriteLine("yeah");
+                }
+
 
                 capture.StopRecording();
 
-                wave.Dispose();
+                wo.Stop();
+
             }
         }
     }
