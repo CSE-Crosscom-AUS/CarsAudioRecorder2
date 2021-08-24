@@ -59,42 +59,24 @@ namespace CarsAudioRecorder2
         {
             using (NAudio.CoreAudioApi.WasapiCapture capture = new NAudio.CoreAudioApi.WasapiCapture(InputDevice))
             {
-
-
-
-
                 Concentus.Oggfile.OpusOggWriteStream[] ogg = new Concentus.Oggfile.OpusOggWriteStream[4];
-                Concentus.Structs.OpusEncoder[] encoders = new Concentus.Structs.OpusEncoder[4]; //OpusEncoder.Create(48000, 1, OpusApplication.OPUS_APPLICATION_AUDIO);
+                Concentus.Structs.OpusEncoder[] encoders = new Concentus.Structs.OpusEncoder[4];
                 for (int i = 0; i < encoders.Length; i++)
                 {
-                    encoders[i] = Concentus.Structs.OpusEncoder.Create(48000, 1, Concentus.Enums.OpusApplication.OPUS_APPLICATION_VOIP);
+                    encoders[i] = Concentus.Structs.OpusEncoder.Create(48000, 1, Concentus.Enums.OpusApplication.OPUS_APPLICATION_AUDIO);
                     encoders[i].UseVBR = true;
-                    encoders[i].Bitrate = 6144 * 5;
+                    encoders[i].Bitrate = 1024 * 128;
 
 
-                    System.IO.FileStream os = new System.IO.FileStream($"out{i}.opus", System.IO.FileMode.OpenOrCreate);
+                    string fn = $"out{i}.opus";
+
+                    System.IO.File.Delete(fn);
+
+                    System.IO.FileStream os = new System.IO.FileStream(fn, System.IO.FileMode.OpenOrCreate);
                     ogg[i] = new Concentus.Oggfile.OpusOggWriteStream(encoders[i], os);
 
                 }
 
-
-                //encoder.Bitrate = 12000;
-
-                //OpusDotNet.OpusEncoder[] oe = new OpusDotNet.OpusEncoder[4];
-                //for (int i = 0; i < oe.Length; i++)
-                //{
-                //    oe[i] = new OpusDotNet.OpusEncoder(OpusDotNet.Application.VoIP, 48000, 1)
-                //    {
-                //        VBR = true,
-                //    };
-                //}
-
-                Queue<byte>[] queue = new Queue<byte>[4];
-
-                for (int i = 0; i < queue.Length; i++)
-                {
-                    queue[i] = new Queue<byte>();
-                }
 
 
                 NAudio.Wave.BufferedWaveProvider[] bwp = new NAudio.Wave.BufferedWaveProvider[4];
@@ -102,11 +84,12 @@ namespace CarsAudioRecorder2
                 for (int i = 0; i < bwp.Length; i++)
                 {
                     bwp[i] = new NAudio.Wave.BufferedWaveProvider(capture.WaveFormat);
+                    bwp[i].BufferDuration = TimeSpan.FromSeconds(12);
                     bwp[i].ReadFully = false;
                 }
 
 
-                int opus_frame_length = 48000 * 2 / 50;
+                int opus_frame_length = 48000 * 12;
 
 
                 int channel_count;
@@ -122,7 +105,6 @@ namespace CarsAudioRecorder2
                 byte[] buffer = new byte[capture.WaveFormat.BitsPerSample * capture.WaveFormat.Channels / 8 + 1000];
 
                 short[] pcm_buffer = new short[opus_frame_length];
-                //byte[] opus_buffer = new byte[opus_frame_length];
 
 
                 object wave_lock = new object();
@@ -136,14 +118,11 @@ namespace CarsAudioRecorder2
                         {
                             bwp[i].AddSamples(e.Buffer, 0, e.BytesRecorded);
 
-                            if (bwp[i].BufferLength >= 48000 * capture.WaveFormat.BitsPerSample * capture.WaveFormat.Channels / 8)
+
+                            if (bwp[i].BufferedBytes >= bwp[i].WaveFormat.AverageBytesPerSecond * 10)
                             {
-                                Console.WriteLine($"buffer duration is {bwp[i].BufferDuration.TotalMilliseconds}");
-
-                                Console.WriteLine("hi");
-
-
                                 NAudio.Wave.ResamplerDmoStream rds = new NAudio.Wave.ResamplerDmoStream(bwp[i], opus_format4);
+
 
                                 NAudio.Wave.MultiplexingWaveProvider mwp2 = new NAudio.Wave.MultiplexingWaveProvider(new NAudio.Wave.IWaveProvider[] { rds, }, 1);
                                 mwp2.ConnectInputToOutput(i, 0);
@@ -159,78 +138,16 @@ namespace CarsAudioRecorder2
                                         break;
                                     }
 
-                                    //ms[i].Write(buffer, 0, count);
-                                    for (int j = 0; j < count; j++)
-                                    {
-                                        queue[i].Enqueue(buffer[j]);
-                                    }
+
+
+                                    short[] sdata = new short[count / 2];
+                                    Buffer.BlockCopy(buffer, 0, sdata, 0, count);
+                                    ogg[i].WriteSamples(sdata, 0, count / 2);
                                 }
-
-                            }
-
-
-
-                            bwp[i].ClearBuffer();
-                        }
-
-
-
-                        for (int i = 0; i < queue.Length; i++)
-                        {
-                            while (queue[i].Count > 0)
-                            {
-                                for (int j = 0; j < opus_frame_length; j++)
-                                {
-                                    if (queue[i].Count == 0)
-                                    {
-                                        break;
-                                    }
-                                    var low = queue[i].Dequeue();
-                                    var high = queue[i].Dequeue() * 256;
-
-                                    pcm_buffer[j] = (short)(high + low);
-                                }
-
-                                ogg[i].WriteSamples(pcm_buffer, 0, opus_frame_length);
                             }
                         }
                     }
                 };
-
-
-
-
-                //NAudio.Wave.MultiplexingWaveProvider[] mwp = new NAudio.Wave.MultiplexingWaveProvider[4];
-
-                //for (int i = 0; i < mwp.Length; i++)
-                //{
-                //    mwp[i] = new NAudio.Wave.MultiplexingWaveProvider(new NAudio.Wave.IWaveProvider[] { bwp[i], }, 1);
-                //    mwp[i].ConnectInputToOutput(i, 0);
-                //}
-
-
-
-
-
-                //capture.DataAvailable += (object sender, NAudio.Wave.WaveInEventArgs e) =>
-                //{
-                //    for (int i = 0; i < bwp.Length; i++)
-                //    {
-                //        bwp[i].AddSamples(e.Buffer, 0, e.BytesRecorded);
-                //    }
-                //};
-
-
-
-                //NAudio.Wave.IWavePlayer[] wo = new DiskWavePlayer[4];
-
-                //for (int i = 0; i < wo.Length; i++)
-                //{
-                //    wo[i] = new DiskWavePlayer($"out{i}.wav");
-
-                //    wo[i].Init(mwp[i]);
-                //    wo[i].Play();
-                //}
 
 
 
@@ -243,26 +160,15 @@ namespace CarsAudioRecorder2
                         break;
                     }
                     Thread.Sleep(100);
-                    Console.WriteLine("yeah");
                 }
 
 
                 capture.StopRecording();
 
 
-                //for (int i = 0; i < wo.Length; i++)
-                //{
-                //    wo[i].Stop();
-                //    wo[i].Dispose();
-                //}
 
                 lock (wave_lock)
                 {
-                    //for (int i = 0; i < wave.Length; i++)
-                    //{
-                    //    wave[i].Dispose();
-                    //}
-
                     for (int i = 0; i < ogg.Length; i++)
                     {
                         ogg[i].Finish();
