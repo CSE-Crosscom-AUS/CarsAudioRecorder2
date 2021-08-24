@@ -6,7 +6,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace CarsAudioRecorder2b
+namespace CarsAudioRecorder2
 {
     class DiskWavePlayer : NAudio.Wave.IWavePlayer
     {

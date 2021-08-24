@@ -6,8 +6,8 @@
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
     <ProjectGuid>{F302C8A1-6548-40FA-B9F0-C361495C742E}</ProjectGuid>
     <OutputType>Exe</OutputType>
-    <RootNamespace>CarsAudioRecorder2b</RootNamespace>
-    <AssemblyName>CarsAudioRecorder2b</AssemblyName>
+    <RootNamespace>CarsAudioRecorder2</RootNamespace>
+    <AssemblyName>CarsAudioRecorder2</AssemblyName>
     <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>

@@ -3,7 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 16
 VisualStudioVersion = 16.0.31613.86
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CarsAudioRecorder2b", "CarsAudioRecorder2b\CarsAudioRecorder2b.csproj", "{F302C8A1-6548-40FA-B9F0-C361495C742E}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CarsAudioRecorder2", "CarsAudioRecorder2\CarsAudioRecorder2.csproj", "{F302C8A1-6548-40FA-B9F0-C361495C742E}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
