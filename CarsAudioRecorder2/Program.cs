@@ -57,6 +57,9 @@ namespace CarsAudioRecorder2
 
         public static void Record(NAudio.CoreAudioApi.MMDevice InputDevice)
         {
+
+            short[] silence = new short[2000];
+
             using (NAudio.CoreAudioApi.WasapiCapture capture = new NAudio.CoreAudioApi.WasapiCapture(InputDevice))
             {
                 Concentus.Oggfile.OpusOggWriteStream[] ogg = new Concentus.Oggfile.OpusOggWriteStream[4];
@@ -142,7 +145,23 @@ namespace CarsAudioRecorder2
 
                                     short[] sdata = new short[count / 2];
                                     Buffer.BlockCopy(buffer, 0, sdata, 0, count);
-                                    ogg[i].WriteSamples(sdata, 0, count / 2);
+
+                                    short max = 0;
+                                    for (int si = 0; si < sdata.Length; si++)
+                                    {
+                                        max = Math.Max(max, Math.Abs(sdata[si]));
+                                    }
+                                    //Console.WriteLine($"channel {i}: count is {count}, max is {max}");
+
+
+                                    if (max < 500)
+                                    {
+                                        ogg[i].WriteSamples(silence, 0, count / 2);
+                                    }
+                                    else
+                                    {
+                                        ogg[i].WriteSamples(sdata, 0, count / 2);
+                                    }
                                 }
                             }
                         }
