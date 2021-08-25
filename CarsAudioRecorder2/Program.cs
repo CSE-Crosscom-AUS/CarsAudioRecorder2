@@ -63,12 +63,18 @@ namespace CarsAudioRecorder2
 
             using (NAudio.CoreAudioApi.WasapiCapture capture = new NAudio.CoreAudioApi.WasapiCapture(InputDevice, false, 1000))
             {
-                Concentus.Oggfile.OpusOggWriteStream[] oggfiles = new Concentus.Oggfile.OpusOggWriteStream[4];
+                //Concentus.Oggfile.OpusOggWriteStream[] oggfiles = new Concentus.Oggfile.OpusOggWriteStream[4];
 
-                for (int i = 0; i < oggfiles.Length; i++)
-                {
-                    oggfiles[i] = CreateOgg($"out{i}.opus");
-                }
+                //for (int i = 0; i < oggfiles.Length; i++)
+                //{
+                //    oggfiles[i] = CreateOgg($"out{i}.opus");
+                //}
+
+                string recordingFolder = "recording";
+
+                System.IO.Directory.CreateDirectory(recordingFolder);
+
+                Block[] CurrentBlocks = new Block[4];
 
 
 
@@ -108,6 +114,8 @@ namespace CarsAudioRecorder2
                 {
                     byte[] buffer2 = new byte[e.BytesRecorded];
 
+                    //Console.WriteLine(e.BytesRecorded);
+
                     Buffer.BlockCopy(e.Buffer, 0, buffer2, 0, e.BytesRecorded);
 
                     queue.Add((buffer2, e.BytesRecorded));
@@ -135,6 +143,8 @@ namespace CarsAudioRecorder2
                                     mwp2.ConnectInputToOutput(i, 0);
 
 
+                                    DateTimeOffset CurrentBlockTs = RoundDownToFiveMinutes(DateTimeOffset.Now);
+
                                     while (true)
                                     {
 
@@ -145,6 +155,19 @@ namespace CarsAudioRecorder2
                                             break;
                                         }
 
+                                        if (CurrentBlocks[i] == null || CurrentBlocks[i].BlockTs != CurrentBlockTs)
+                                        {
+                                            CurrentBlocks[i]?.oggfile?.Finish();
+
+                                            string fn = System.IO.Path.Combine(recordingFolder, $"recording-{CurrentBlockTs.Year:0000}{CurrentBlockTs.Month:00}{CurrentBlockTs.Day:00}-{CurrentBlockTs.Hour:00}{CurrentBlockTs.Minute:00}{CurrentBlockTs.Second:00}-ch{i:00}.opus");
+
+                                            CurrentBlocks[i] = new Block
+                                            {
+                                                BlockTs = CurrentBlockTs,
+                                                oggfile = CreateOgg(fn),
+                                                filename = fn,
+                                            };
+                                        }
 
 
                                         short[] sdata = new short[count / 2];
@@ -160,11 +183,11 @@ namespace CarsAudioRecorder2
 
                                         if (max < 500)
                                         {
-                                            oggfiles[i].WriteSamples(silence, 0, count / 2);
+                                            CurrentBlocks[i].oggfile.WriteSamples(silence, 0, count / 2);
                                         }
                                         else
                                         {
-                                            oggfiles[i].WriteSamples(sdata, 0, count / 2);
+                                            CurrentBlocks[i].oggfile.WriteSamples(sdata, 0, count / 2);
                                         }
                                     }
                                 }
@@ -217,9 +240,9 @@ namespace CarsAudioRecorder2
 
                 lock (wave_lock)
                 {
-                    for (int i = 0; i < oggfiles.Length; i++)
+                    for (int i = 0; i < CurrentBlocks.Length; i++)
                     {
-                        oggfiles[i].Finish();
+                        CurrentBlocks[i]?.oggfile?.Finish();
                     }
                 }
             }
@@ -232,7 +255,7 @@ namespace CarsAudioRecorder2
             encoder.Bitrate = 1024 * 10;
 
 
-            System.IO.File.Delete(filename);
+            //System.IO.File.Delete(filename);
 
             System.IO.FileStream os = new System.IO.FileStream(filename, System.IO.FileMode.OpenOrCreate);
             return new Concentus.Oggfile.OpusOggWriteStream(encoder, os);
@@ -245,5 +268,12 @@ namespace CarsAudioRecorder2
 
             return new DateTimeOffset(ms, now.Offset);
         }
+    }
+
+    public class Block
+    {
+        public DateTimeOffset BlockTs { get; set; }
+        public Concentus.Oggfile.OpusOggWriteStream oggfile { get; set; }
+        public string filename { get; set; }
     }
 }
