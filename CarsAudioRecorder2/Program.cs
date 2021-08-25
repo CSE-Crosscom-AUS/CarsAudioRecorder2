@@ -189,6 +189,14 @@ namespace CarsAudioRecorder2
 
 
 
+                // attempt to align audio recording with seconds
+                int five_second = DateTimeOffset.Now.Second / 5;
+                while (DateTimeOffset.Now.Second / 5 == five_second)
+                {
+                    // wait
+                }
+
+
                 capture.StartRecording();
                 DateTimeOffset start = DateTimeOffset.Now;
                 DateTimeOffset last_report = DateTimeOffset.MinValue;
