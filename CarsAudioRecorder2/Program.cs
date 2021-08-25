@@ -63,22 +63,11 @@ namespace CarsAudioRecorder2
 
             using (NAudio.CoreAudioApi.WasapiCapture capture = new NAudio.CoreAudioApi.WasapiCapture(InputDevice, false, 1000))
             {
-                Concentus.Oggfile.OpusOggWriteStream[] ogg = new Concentus.Oggfile.OpusOggWriteStream[4];
-                Concentus.Structs.OpusEncoder[] encoders = new Concentus.Structs.OpusEncoder[4];
-                for (int i = 0; i < encoders.Length; i++)
+                Concentus.Oggfile.OpusOggWriteStream[] oggfiles = new Concentus.Oggfile.OpusOggWriteStream[4];
+
+                for (int i = 0; i < oggfiles.Length; i++)
                 {
-                    encoders[i] = Concentus.Structs.OpusEncoder.Create(48000, 1, Concentus.Enums.OpusApplication.OPUS_APPLICATION_AUDIO);
-                    encoders[i].UseVBR = true;
-                    encoders[i].Bitrate = 1024 * 10;
-
-
-                    string fn = $"out{i}.opus";
-
-                    System.IO.File.Delete(fn);
-
-                    System.IO.FileStream os = new System.IO.FileStream(fn, System.IO.FileMode.OpenOrCreate);
-                    ogg[i] = new Concentus.Oggfile.OpusOggWriteStream(encoders[i], os);
-
+                    oggfiles[i] = CreateOgg($"out{i}.opus");
                 }
 
 
@@ -171,11 +160,11 @@ namespace CarsAudioRecorder2
 
                                         if (max < 500)
                                         {
-                                            ogg[i].WriteSamples(silence, 0, count / 2);
+                                            oggfiles[i].WriteSamples(silence, 0, count / 2);
                                         }
                                         else
                                         {
-                                            ogg[i].WriteSamples(sdata, 0, count / 2);
+                                            oggfiles[i].WriteSamples(sdata, 0, count / 2);
                                         }
                                     }
                                 }
@@ -228,12 +217,25 @@ namespace CarsAudioRecorder2
 
                 lock (wave_lock)
                 {
-                    for (int i = 0; i < ogg.Length; i++)
+                    for (int i = 0; i < oggfiles.Length; i++)
                     {
-                        ogg[i].Finish();
+                        oggfiles[i].Finish();
                     }
                 }
             }
+        }
+
+        public static Concentus.Oggfile.OpusOggWriteStream CreateOgg(string filename)
+        {
+            Concentus.Structs.OpusEncoder encoder = Concentus.Structs.OpusEncoder.Create(48000, 1, Concentus.Enums.OpusApplication.OPUS_APPLICATION_AUDIO);
+            encoder.UseVBR = true;
+            encoder.Bitrate = 1024 * 10;
+
+
+            System.IO.File.Delete(filename);
+
+            System.IO.FileStream os = new System.IO.FileStream(filename, System.IO.FileMode.OpenOrCreate);
+            return new Concentus.Oggfile.OpusOggWriteStream(encoder, os);
         }
 
 
