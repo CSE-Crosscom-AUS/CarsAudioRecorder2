@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -112,61 +113,79 @@ namespace CarsAudioRecorder2
 
                 object wave_lock = new object();
 
+                BlockingCollection<(byte[], int)> queue = new BlockingCollection<(byte[], int)>(new ConcurrentQueue<(byte[], int)>());
+
                 capture.DataAvailable += (object sender, NAudio.Wave.WaveInEventArgs e) =>
                 {
+                    byte[] buffer2 = new byte[e.BytesRecorded];
 
-                    lock (wave_lock)
+                    Buffer.BlockCopy(e.Buffer, 0, buffer2, 0, e.BytesRecorded);
+
+                    queue.Add((buffer2, e.BytesRecorded));
+                };
+
+                Thread thread = new Thread(() =>
+                {
+                    while (true)
                     {
-                        for (int i = 0; i < bwp.Length; i++)
+                        (byte[] buffer3, int bytesRecorded) = queue.Take();
+
+                        lock (wave_lock)
                         {
-                            bwp[i].AddSamples(e.Buffer, 0, e.BytesRecorded);
-
-
-                            if (bwp[i].BufferedBytes >= bwp[i].WaveFormat.AverageBytesPerSecond * 10)
+                            for (int i = 0; i < bwp.Length; i++)
                             {
-                                NAudio.Wave.ResamplerDmoStream rds = new NAudio.Wave.ResamplerDmoStream(bwp[i], opus_format4);
+                                bwp[i].AddSamples(buffer3, 0, bytesRecorded);
 
 
-                                NAudio.Wave.MultiplexingWaveProvider mwp2 = new NAudio.Wave.MultiplexingWaveProvider(new NAudio.Wave.IWaveProvider[] { rds, }, 1);
-                                mwp2.ConnectInputToOutput(i, 0);
-
-
-                                while (true)
+                                if (bwp[i].BufferedBytes >= bwp[i].WaveFormat.AverageBytesPerSecond * 10)
                                 {
+                                    NAudio.Wave.ResamplerDmoStream rds = new NAudio.Wave.ResamplerDmoStream(bwp[i], opus_format4);
 
-                                    int count = mwp2.Read(buffer, 0, buffer.Length);
 
-                                    if (count == 0)
+                                    NAudio.Wave.MultiplexingWaveProvider mwp2 = new NAudio.Wave.MultiplexingWaveProvider(new NAudio.Wave.IWaveProvider[] { rds, }, 1);
+                                    mwp2.ConnectInputToOutput(i, 0);
+
+
+                                    while (true)
                                     {
-                                        break;
-                                    }
+
+                                        int count = mwp2.Read(buffer, 0, buffer.Length);
+
+                                        if (count == 0)
+                                        {
+                                            break;
+                                        }
 
 
 
-                                    short[] sdata = new short[count / 2];
-                                    Buffer.BlockCopy(buffer, 0, sdata, 0, count);
+                                        short[] sdata = new short[count / 2];
+                                        Buffer.BlockCopy(buffer, 0, sdata, 0, count);
 
-                                    short max = 0;
-                                    for (int si = 0; si < sdata.Length; si++)
-                                    {
-                                        max = Math.Max(max, Math.Abs(sdata[si]));
-                                    }
-                                    //Console.WriteLine($"channel {i}: count is {count}, max is {max}");
+                                        short max = 0;
+                                        for (int si = 0; si < sdata.Length; si++)
+                                        {
+                                            max = Math.Max(max, Math.Abs(sdata[si]));
+                                        }
+                                        //Console.WriteLine($"channel {i}: count is {count}, max is {max}");
 
 
-                                    if (max < 500)
-                                    {
-                                        ogg[i].WriteSamples(silence, 0, count / 2);
-                                    }
-                                    else
-                                    {
-                                        ogg[i].WriteSamples(sdata, 0, count / 2);
+                                        if (max < 500)
+                                        {
+                                            ogg[i].WriteSamples(silence, 0, count / 2);
+                                        }
+                                        else
+                                        {
+                                            ogg[i].WriteSamples(sdata, 0, count / 2);
+                                        }
                                     }
                                 }
                             }
                         }
                     }
-                };
+                });
+                thread.IsBackground = true;
+                thread.Name = "Encoding thread";
+                thread.Start();
 
 
 
