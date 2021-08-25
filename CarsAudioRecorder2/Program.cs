@@ -68,7 +68,7 @@ namespace CarsAudioRecorder2
                 {
                     encoders[i] = Concentus.Structs.OpusEncoder.Create(48000, 1, Concentus.Enums.OpusApplication.OPUS_APPLICATION_AUDIO);
                     encoders[i].UseVBR = true;
-                    encoders[i].Bitrate = 1024 * 128;
+                    encoders[i].Bitrate = 1024 * 10;
 
 
                     string fn = $"out{i}.opus";
