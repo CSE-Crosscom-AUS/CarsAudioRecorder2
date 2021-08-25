@@ -61,7 +61,7 @@ namespace CarsAudioRecorder2
 
             short[] silence = new short[2000];
 
-            using (NAudio.CoreAudioApi.WasapiCapture capture = new NAudio.CoreAudioApi.WasapiCapture(InputDevice))
+            using (NAudio.CoreAudioApi.WasapiCapture capture = new NAudio.CoreAudioApi.WasapiCapture(InputDevice, false, 1000))
             {
                 Concentus.Oggfile.OpusOggWriteStream[] ogg = new Concentus.Oggfile.OpusOggWriteStream[4];
                 Concentus.Structs.OpusEncoder[] encoders = new Concentus.Structs.OpusEncoder[4];
