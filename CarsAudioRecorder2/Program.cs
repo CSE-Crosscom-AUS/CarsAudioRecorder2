@@ -171,9 +171,21 @@ namespace CarsAudioRecorder2
 
 
                 capture.StartRecording();
+                DateTimeOffset start = DateTimeOffset.Now;
+                DateTimeOffset last_report = DateTimeOffset.MinValue;
+                TimeSpan span = TimeSpan.FromMinutes(1);
 
                 while (true)
                 {
+                    DateTimeOffset now = DateTimeOffset.Now;
+
+                    if (last_report + span < now)
+                    {
+                        Console.WriteLine($"{(now - start).TotalMinutes} minutes elapsed");
+                        last_report = now;
+                    }
+
+
                     if (Console.KeyAvailable)
                     {
                         break;
@@ -183,6 +195,7 @@ namespace CarsAudioRecorder2
 
 
                 capture.StopRecording();
+                Console.WriteLine($"recorded for {DateTimeOffset.Now - start}");
 
 
 
