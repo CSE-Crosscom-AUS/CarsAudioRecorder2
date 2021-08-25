@@ -227,5 +227,13 @@ namespace CarsAudioRecorder2
                 }
             }
         }
+
+
+        public static DateTimeOffset RoundDownToFiveMinutes(DateTimeOffset now)
+        {
+            long ms = now.Ticks - now.Ticks % TimeSpan.FromMinutes(5).Ticks;
+
+            return new DateTimeOffset(ms, now.Offset);
+        }
     }
 }
