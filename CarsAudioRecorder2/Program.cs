@@ -14,13 +14,24 @@ namespace CarsAudioRecorder2
         static System.IO.StreamWriter LogFile;
 
         static DateTimeOffset CurrentBlockTs;
+        static long CurrentBlockLength;
 
         static void Main(string[] args)
         {
             CurrentBlockTs = RoundDownToFiveSeconds(DateTimeOffset.Now + TimeSpan.FromSeconds(5));
+
+            DateTimeOffset NextBlockTs = RoundDownToFiveMinutes(CurrentBlockTs + TimeSpan.FromMinutes(5));
+
+            TimeSpan CurrentBlockSpan = NextBlockTs - CurrentBlockTs;
+            CurrentBlockLength = (long)(CurrentBlockSpan.TotalSeconds * 48000);
+
+
             LogFile = new System.IO.StreamWriter(System.IO.Path.Combine("recording", $"recording-{CurrentBlockTs.Year:0000}{CurrentBlockTs.Month:00}{CurrentBlockTs.Day:00}-{CurrentBlockTs.Hour:00}{CurrentBlockTs.Minute:00}{CurrentBlockTs.Second:00}.txt"));
 
-
+            LogWriteLine($"    CurrentBlockTs: {CurrentBlockTs}");
+            LogWriteLine($"       NextBlockTs: {NextBlockTs}");
+            LogWriteLine($"  CurrentBlockSpan: {CurrentBlockSpan}");
+            LogWriteLine($"CurrentBlockLength: {CurrentBlockLength}");
 
 
             NAudio.CoreAudioApi.MMDevice InputDevice = GetMMDevice();
@@ -160,6 +171,7 @@ namespace CarsAudioRecorder2
                                     if (PosibleNextBlockTs > CurrentBlockTs)
                                     {
                                         CurrentBlockTs = PosibleNextBlockTs;
+                                        CurrentBlockLength = 48000 * 60 * 5;
                                     }
 
                                     while (true)
