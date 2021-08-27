@@ -13,17 +13,17 @@ namespace CarsAudioRecorder2
 
         static System.IO.StreamWriter LogFile;
 
-        static DateTimeOffset CurrentBlockTs;
-        static long CurrentBlockLength;
+        static string RecordingFolder => "recording";
+
 
         static void Main(string[] args)
         {
-            CurrentBlockTs = RoundDownToFiveSeconds(DateTimeOffset.Now + TimeSpan.FromSeconds(5));
+            DateTimeOffset CurrentBlockTs = RoundDownToFiveSeconds(DateTimeOffset.Now + TimeSpan.FromSeconds(5));
 
             DateTimeOffset NextBlockTs = RoundDownToFiveMinutes(CurrentBlockTs + TimeSpan.FromMinutes(5));
 
             TimeSpan CurrentBlockSpan = NextBlockTs - CurrentBlockTs;
-            CurrentBlockLength = (long)(CurrentBlockSpan.TotalSeconds * 48000);
+            int CurrentBlockLength = (int)(CurrentBlockSpan.TotalSeconds * 48000);
 
 
             LogFile = new System.IO.StreamWriter(System.IO.Path.Combine("recording", $"recording-{CurrentBlockTs.Year:0000}{CurrentBlockTs.Month:00}{CurrentBlockTs.Day:00}-{CurrentBlockTs.Hour:00}{CurrentBlockTs.Minute:00}{CurrentBlockTs.Second:00}.txt"));
@@ -39,7 +39,7 @@ namespace CarsAudioRecorder2
 
             if (InputDevice != null)
             {
-                Record(InputDevice);
+                Record(InputDevice, CurrentBlockTs);
             }
         }
 
@@ -78,28 +78,41 @@ namespace CarsAudioRecorder2
         }
 
 
-        public static void Record(NAudio.CoreAudioApi.MMDevice InputDevice)
+        public static void Record(NAudio.CoreAudioApi.MMDevice InputDevice, DateTimeOffset StartTimeTs)
         {
 
             short[] silence = new short[2000];
 
             using (NAudio.CoreAudioApi.WasapiCapture capture = new NAudio.CoreAudioApi.WasapiCapture(InputDevice, false, 1000))
             {
-                //Concentus.Oggfile.OpusOggWriteStream[] oggfiles = new Concentus.Oggfile.OpusOggWriteStream[4];
-
-                //for (int i = 0; i < oggfiles.Length; i++)
-                //{
-                //    oggfiles[i] = CreateOgg($"out{i}.opus");
-                //}
-
-                string recordingFolder = "recording";
-
-                System.IO.Directory.CreateDirectory(recordingFolder);
+                System.IO.Directory.CreateDirectory(RecordingFolder);
 
                 Block[] CurrentBlocks = new Block[4];
 
 
-                while (CurrentBlockTs < RoundDownToFiveSeconds(DateTimeOffset.Now))
+                DateTimeOffset NextBlockTs = RoundDownToFiveMinutes(StartTimeTs + TimeSpan.FromMinutes(5));
+
+                TimeSpan StartBlockSpan = NextBlockTs - StartTimeTs;
+                int StartBlockLengthSamples = (int)(StartBlockSpan.TotalSeconds * 48000);
+
+
+                for (int i = 0; i < CurrentBlocks.Length; i++)
+                {
+                    string fn = FileName(StartTimeTs, i);
+
+                    CurrentBlocks[i] = new Block
+                    {
+                        BlockStartTs = StartTimeTs,
+                        FileName = fn,
+                        OggFile = CreateOgg(fn),
+                        FinalSampleCount = StartBlockLengthSamples,
+                    };
+
+                    LogWriteLine($"new Block {i} {StartTimeTs} {StartBlockLengthSamples}");
+                }
+
+
+                while (StartTimeTs < RoundDownToFiveSeconds(DateTimeOffset.Now))
                 {
                     // wait
                 }
@@ -166,14 +179,6 @@ namespace CarsAudioRecorder2
                                     NAudio.Wave.MultiplexingWaveProvider mwp2 = new NAudio.Wave.MultiplexingWaveProvider(new NAudio.Wave.IWaveProvider[] { rds, }, 1);
                                     mwp2.ConnectInputToOutput(i, 0);
 
-
-                                    DateTimeOffset PosibleNextBlockTs = RoundDownToFiveMinutes(DateTimeOffset.Now);
-                                    if (PosibleNextBlockTs > CurrentBlockTs)
-                                    {
-                                        CurrentBlockTs = PosibleNextBlockTs;
-                                        CurrentBlockLength = 48000 * 60 * 5;
-                                    }
-
                                     while (true)
                                     {
 
@@ -184,20 +189,20 @@ namespace CarsAudioRecorder2
                                             break;
                                         }
 
-                                        if (CurrentBlocks[i] == null || CurrentBlocks[i].BlockTs < CurrentBlockTs)
-                                        {
-                                            CurrentBlocks[i]?.OggFile?.Finish();
-                                            LogWriteLine($"Channel {i}: RawSampleCount {CurrentBlocks[i]?.RawSampleCount}");
+                                        //if (CurrentBlocks[i] == null || CurrentBlocks[i].BlockTs < CurrentBlockTs)
+                                        //{
+                                        //    CurrentBlocks[i]?.OggFile?.Finish();
+                                        //    LogWriteLine($"Channel {i}: RawSampleCount {CurrentBlocks[i]?.RawSampleCount}");
 
-                                            string fn = System.IO.Path.Combine(recordingFolder, $"recording-{CurrentBlockTs.Year:0000}{CurrentBlockTs.Month:00}{CurrentBlockTs.Day:00}-{CurrentBlockTs.Hour:00}{CurrentBlockTs.Minute:00}{CurrentBlockTs.Second:00}-ch{i:00}.opus");
+                                        //    string fn = System.IO.Path.Combine(RecordingFolder, $"recording-{CurrentBlockTs.Year:0000}{CurrentBlockTs.Month:00}{CurrentBlockTs.Day:00}-{CurrentBlockTs.Hour:00}{CurrentBlockTs.Minute:00}{CurrentBlockTs.Second:00}-ch{i:00}.opus");
 
-                                            CurrentBlocks[i] = new Block
-                                            {
-                                                BlockTs = CurrentBlockTs,
-                                                OggFile = CreateOgg(fn),
-                                                FileName = fn,
-                                            };
-                                        }
+                                        //    CurrentBlocks[i] = new Block
+                                        //    {
+                                        //        BlockTs = CurrentBlockTs,
+                                        //        OggFile = CreateOgg(fn),
+                                        //        FileName = fn,
+                                        //    };
+                                        //}
 
 
                                         short[] sdata = new short[count / 2];
@@ -210,17 +215,75 @@ namespace CarsAudioRecorder2
                                         }
 
 
-                                        // need to move the block creation to here (so we can make blocks exactly 5 minutes
+                                        int sample_count = count / 2;
 
-                                        if (max < 500)
+
+
+
+                                        int block_remaining_samples = CurrentBlocks[i].FinalSampleCount - CurrentBlocks[i].CurrentSampleCount;
+
+                                        int step_one_sample_count;
+
+                                        if (block_remaining_samples >= sample_count)
                                         {
-                                            CurrentBlocks[i].OggFile.WriteSamples(silence, 0, count / 2);
+                                            step_one_sample_count = sample_count;
                                         }
                                         else
                                         {
-                                            CurrentBlocks[i].OggFile.WriteSamples(sdata, 0, count / 2);
+                                            step_one_sample_count = block_remaining_samples;
                                         }
-                                        CurrentBlocks[i].RawSampleCount += count / 2;
+
+                                        int step_two_sample_count = sample_count - step_one_sample_count;
+
+
+
+                                        if (max < 500)
+                                        {
+                                            CurrentBlocks[i].OggFile.WriteSamples(silence, 0, step_one_sample_count);
+                                        }
+                                        else
+                                        {
+                                            CurrentBlocks[i].OggFile.WriteSamples(sdata, 0, step_one_sample_count);
+                                        }
+                                        CurrentBlocks[i].CurrentSampleCount += step_one_sample_count;
+
+
+                                        if (step_two_sample_count > 0)
+                                        {
+                                            LogWriteLine($"finishing Block {i} {CurrentBlocks[i].CurrentSampleCount} {CurrentBlocks[i].FinalSampleCount}");
+
+                                            CurrentBlocks[i].OggFile.Finish();
+                                            Block oldblock = CurrentBlocks[i];
+
+                                            DateTimeOffset new_block_start_ts = RoundDownToFiveMinutes(oldblock.BlockStartTs + TimeSpan.FromMinutes(5));
+                                            string fn = FileName(new_block_start_ts, i);
+
+                                            CurrentBlocks[i] = new Block
+                                            {
+                                                BlockStartTs = new_block_start_ts,
+                                                FileName = fn,
+                                                OggFile = CreateOgg(fn),
+                                                FinalSampleCount = 48000 * 60 * 5,
+                                            };
+
+                                            LogWriteLine($"new Block {i} {CurrentBlocks[i].BlockStartTs} {CurrentBlocks[i].FinalSampleCount}");
+
+
+                                            // put step_two_sample_count into the new block
+                                            if (step_two_sample_count > 0)
+                                            {
+                                                if (max < 500)
+                                                {
+                                                    CurrentBlocks[i].OggFile.WriteSamples(silence, step_one_sample_count, step_two_sample_count);
+                                                }
+                                                else
+                                                {
+                                                    CurrentBlocks[i].OggFile.WriteSamples(sdata, step_one_sample_count, step_two_sample_count);
+                                                }
+                                                CurrentBlocks[i].CurrentSampleCount += step_two_sample_count;
+                                            }
+                                        }
+
                                     }
                                 }
                             }
@@ -305,6 +368,12 @@ namespace CarsAudioRecorder2
         }
 
 
+        public static string FileName(DateTimeOffset ts, int channel)
+        {
+            return System.IO.Path.Combine(RecordingFolder, $"recording-{ts.Year:0000}{ts.Month:00}{ts.Day:00}-{ts.Hour:00}{ts.Minute:00}{ts.Second:00}-ch{channel:00}.opus");
+        }
+
+
         public static void LogWrite(string s)
         {
             Console.Write(s);
@@ -323,9 +392,10 @@ namespace CarsAudioRecorder2
 
     public class Block
     {
-        public DateTimeOffset BlockTs { get; set; }
+        public DateTimeOffset BlockStartTs { get; set; }
         public Concentus.Oggfile.OpusOggWriteStream OggFile { get; set; }
         public string FileName { get; set; }
-        public int RawSampleCount { get; set; } = 0;
+        public int CurrentSampleCount { get; set; } = 0;
+        public int FinalSampleCount { get; set; }
     }
 }
