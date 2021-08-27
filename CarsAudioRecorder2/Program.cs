@@ -236,6 +236,8 @@ namespace CarsAudioRecorder2
                                         int step_two_sample_count = sample_count - step_one_sample_count;
 
 
+                                        //LogWriteLine($"step1: {step_one_sample_count}, step2: {step_two_sample_count}");
+
 
                                         if (max < 500)
                                         {
@@ -248,8 +250,13 @@ namespace CarsAudioRecorder2
                                         CurrentBlocks[i].CurrentSampleCount += step_one_sample_count;
 
 
-                                        if (step_two_sample_count > 0)
+                                        if (CurrentBlocks[i].CurrentSampleCount >= CurrentBlocks[i].FinalSampleCount)
                                         {
+                                            if (CurrentBlocks[i].CurrentSampleCount > CurrentBlocks[i].FinalSampleCount)
+                                            {
+                                                LogFile.WriteLine("This should never happen");
+                                            }
+
                                             LogWriteLine($"finishing Block {i} {CurrentBlocks[i].CurrentSampleCount} {CurrentBlocks[i].FinalSampleCount}");
 
                                             CurrentBlocks[i].OggFile.Finish();
@@ -269,19 +276,17 @@ namespace CarsAudioRecorder2
                                             LogWriteLine($"new Block {i} {CurrentBlocks[i].BlockStartTs} {CurrentBlocks[i].FinalSampleCount}");
 
 
-                                            // put step_two_sample_count into the new block
-                                            if (step_two_sample_count > 0)
+
+                                            if (max < 500)
                                             {
-                                                if (max < 500)
-                                                {
-                                                    CurrentBlocks[i].OggFile.WriteSamples(silence, step_one_sample_count, step_two_sample_count);
-                                                }
-                                                else
-                                                {
-                                                    CurrentBlocks[i].OggFile.WriteSamples(sdata, step_one_sample_count, step_two_sample_count);
-                                                }
-                                                CurrentBlocks[i].CurrentSampleCount += step_two_sample_count;
+                                                CurrentBlocks[i].OggFile.WriteSamples(silence, step_one_sample_count, step_two_sample_count);
                                             }
+                                            else
+                                            {
+                                                CurrentBlocks[i].OggFile.WriteSamples(sdata, step_one_sample_count, step_two_sample_count);
+                                            }
+                                            CurrentBlocks[i].CurrentSampleCount += step_two_sample_count;
+
                                         }
 
                                     }
