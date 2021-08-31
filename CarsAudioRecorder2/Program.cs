@@ -11,27 +11,23 @@ namespace CarsAudioRecorder2
     class Program
     {
 
+        public static string CompanyName => "CSECrosscom";
+        public static string ApplicationName => "CarsAudioRecorder2";
+
+        static string LogFileDir = "";
+        static string LogFileName = "";
         static System.IO.StreamWriter LogFile;
 
-        static string RecordingFolder => "recording";
+        static string RecordingFolder => MakeSettingsFolder("Recordings");
+
+
+
+        private static string last_log_folder = "";
 
 
         static void Main(string[] args)
         {
             DateTimeOffset CurrentBlockTs = RoundDownToFiveSeconds(DateTimeOffset.Now + TimeSpan.FromSeconds(5));
-
-            DateTimeOffset NextBlockTs = RoundDownToFiveMinutes(CurrentBlockTs + TimeSpan.FromMinutes(5));
-
-            TimeSpan CurrentBlockSpan = NextBlockTs - CurrentBlockTs;
-            int CurrentBlockLength = (int)(CurrentBlockSpan.TotalSeconds * 48000);
-
-
-            LogFile = new System.IO.StreamWriter(System.IO.Path.Combine("recording", $"recording-{CurrentBlockTs.Year:0000}{CurrentBlockTs.Month:00}{CurrentBlockTs.Day:00}-{CurrentBlockTs.Hour:00}{CurrentBlockTs.Minute:00}{CurrentBlockTs.Second:00}.txt"));
-
-            LogWriteLine($"    CurrentBlockTs: {CurrentBlockTs}");
-            LogWriteLine($"       NextBlockTs: {NextBlockTs}");
-            LogWriteLine($"  CurrentBlockSpan: {CurrentBlockSpan}");
-            LogWriteLine($"CurrentBlockLength: {CurrentBlockLength}");
 
 
             NAudio.CoreAudioApi.MMDevice InputDevice = GetMMDevice();
@@ -85,30 +81,18 @@ namespace CarsAudioRecorder2
 
             using (NAudio.CoreAudioApi.WasapiCapture capture = new NAudio.CoreAudioApi.WasapiCapture(InputDevice, false, 1000))
             {
-                System.IO.Directory.CreateDirectory(RecordingFolder);
 
                 Block[] CurrentBlocks = new Block[4];
 
 
-                DateTimeOffset NextBlockTs = RoundDownToFiveMinutes(StartTimeTs + TimeSpan.FromMinutes(5));
-
-                TimeSpan StartBlockSpan = NextBlockTs - StartTimeTs;
-                int StartBlockLengthSamples = (int)(StartBlockSpan.TotalSeconds * 48000);
-
 
                 for (int i = 0; i < CurrentBlocks.Length; i++)
                 {
-                    string fn = FileName(StartTimeTs, i);
 
-                    CurrentBlocks[i] = new Block
-                    {
-                        BlockStartTs = StartTimeTs,
-                        FileName = fn,
-                        OggFile = CreateOgg(fn),
-                        FinalSampleCount = StartBlockLengthSamples,
-                    };
 
-                    LogWriteLine($"new Block {i} {StartTimeTs} {StartBlockLengthSamples}");
+                    CurrentBlocks[i] = new Block(StartTimeTs, i);
+
+                    LogWriteLine($"new Block {CurrentBlocks[i].Channel} {CurrentBlocks[i].BlockStartTs} {CurrentBlocks[i].FinalSampleCount}");
                 }
 
 
@@ -189,21 +173,6 @@ namespace CarsAudioRecorder2
                                             break;
                                         }
 
-                                        //if (CurrentBlocks[i] == null || CurrentBlocks[i].BlockTs < CurrentBlockTs)
-                                        //{
-                                        //    CurrentBlocks[i]?.OggFile?.Finish();
-                                        //    LogWriteLine($"Channel {i}: RawSampleCount {CurrentBlocks[i]?.RawSampleCount}");
-
-                                        //    string fn = System.IO.Path.Combine(RecordingFolder, $"recording-{CurrentBlockTs.Year:0000}{CurrentBlockTs.Month:00}{CurrentBlockTs.Day:00}-{CurrentBlockTs.Hour:00}{CurrentBlockTs.Minute:00}{CurrentBlockTs.Second:00}-ch{i:00}.opus");
-
-                                        //    CurrentBlocks[i] = new Block
-                                        //    {
-                                        //        BlockTs = CurrentBlockTs,
-                                        //        OggFile = CreateOgg(fn),
-                                        //        FileName = fn,
-                                        //    };
-                                        //}
-
 
                                         short[] sdata = new short[count / 2];
                                         Buffer.BlockCopy(buffer, 0, sdata, 0, count);
@@ -236,8 +205,6 @@ namespace CarsAudioRecorder2
                                         int step_two_sample_count = sample_count - step_one_sample_count;
 
 
-                                        //LogWriteLine($"step1: {step_one_sample_count}, step2: {step_two_sample_count}");
-
 
                                         if (max < 500)
                                         {
@@ -263,15 +230,9 @@ namespace CarsAudioRecorder2
                                             Block oldblock = CurrentBlocks[i];
 
                                             DateTimeOffset new_block_start_ts = RoundDownToFiveMinutes(oldblock.BlockStartTs + TimeSpan.FromMinutes(5));
-                                            string fn = FileName(new_block_start_ts, i);
 
-                                            CurrentBlocks[i] = new Block
-                                            {
-                                                BlockStartTs = new_block_start_ts,
-                                                FileName = fn,
-                                                OggFile = CreateOgg(fn),
-                                                FinalSampleCount = 48000 * 60 * 5,
-                                            };
+                                            CurrentBlocks[i] = new Block(new_block_start_ts, i);
+
 
                                             LogWriteLine($"new Block {i} {CurrentBlocks[i].BlockStartTs} {CurrentBlocks[i].FinalSampleCount}");
 
@@ -337,24 +298,9 @@ namespace CarsAudioRecorder2
                 }
 
 
-                LogFile.WriteLine("end!");
-                LogFile.Close();
+                LogWriteLine("end!");
             }
         }
-
-        public static Concentus.Oggfile.OpusOggWriteStream CreateOgg(string filename)
-        {
-            Concentus.Structs.OpusEncoder encoder = Concentus.Structs.OpusEncoder.Create(48000, 1, Concentus.Enums.OpusApplication.OPUS_APPLICATION_AUDIO);
-            encoder.UseVBR = true;
-            encoder.Bitrate = 1024 * 10;
-
-
-            //System.IO.File.Delete(filename);
-
-            System.IO.FileStream os = new System.IO.FileStream(filename, System.IO.FileMode.OpenOrCreate);
-            return new Concentus.Oggfile.OpusOggWriteStream(encoder, os);
-        }
-
 
 
         public static DateTimeOffset RoundDownToFiveSeconds(DateTimeOffset now)
@@ -373,14 +319,35 @@ namespace CarsAudioRecorder2
         }
 
 
-        public static string FileName(DateTimeOffset ts, int channel)
+        public static string GetFileName(DateTimeOffset ts, int channel)
         {
-            return System.IO.Path.Combine(RecordingFolder, $"recording-{ts.Year:0000}{ts.Month:00}{ts.Day:00}-{ts.Hour:00}{ts.Minute:00}{ts.Second:00}-ch{channel:00}.opus");
+            return $"recording-{ts.Year:0000}{ts.Month:00}{ts.Day:00}-{ts.Hour:00}{ts.Minute:00}{ts.Second:00}-ch{channel:00}.opus";
         }
 
 
+        private static void CheckLogFile()
+        {
+            string new_log_file_dir = CreateDateFolder(DateTimeOffset.Now);
+
+            if (new_log_file_dir != LogFileDir)
+            {
+                LogFile?.Close();
+                LogFile = null;
+            }
+
+            if (LogFile == null)
+            {
+                DateTimeOffset ts = DateTimeOffset.Now;
+                LogFileDir = new_log_file_dir;
+                LogFileName = System.IO.Path.Combine(LogFileDir, $"recording-{ts.Year:0000}{ts.Month:00}{ts.Day:00}-{ts.Hour}{ts.Minute}{ts.Second}.txt");
+                LogFile = new System.IO.StreamWriter(LogFileName);
+            }
+        }
+
         public static void LogWrite(string s)
         {
+            CheckLogFile();
+
             Console.Write(s);
 
             LogFile.Write(s);
@@ -388,12 +355,94 @@ namespace CarsAudioRecorder2
 
         public static void LogWriteLine(string s = "")
         {
+            CheckLogFile();
+
             Console.WriteLine(s);
 
             LogFile.WriteLine(s);
             LogFile.Flush();
         }
+
+
+        /// <summary>
+        /// Make a settings folder in ~/AppData/Local or ~/AppData/Roaming
+        /// </summary>
+        /// <param name="name">The name of the subfolder to create. Can be "" for the base folder.</param>
+        /// <param name="roaming">true: use "Local", false: use "Roaming"</param>
+        /// <returns>The full path of the folder</returns>
+        public static string MakeSettingsFolder(string name, string application_name = null, Environment.SpecialFolder folderType = Environment.SpecialFolder.LocalApplicationData)
+        {
+
+            string path = Environment.GetFolderPath(folderType);
+
+            if (!System.IO.Directory.Exists(path))
+            {
+                // bad error
+                return null;
+            }
+
+            if (application_name == null)
+            {
+                application_name = ApplicationName;
+            }
+
+            foreach (string path_bit in new List<string> { CompanyName, application_name, name })
+            {
+                if (path_bit == "")
+                {
+                    continue;
+                }
+
+                path = System.IO.Path.Combine(path, path_bit);
+
+                if (!System.IO.Directory.Exists(path))
+                {
+                    System.IO.DirectoryInfo di = System.IO.Directory.CreateDirectory(path);
+
+                    if (!di.Exists)
+                    {
+                        // error
+                        return null;
+                    }
+                }
+            }
+
+            return path;
+        }
+
+
+        public static string CreateDateFolder(DateTimeOffset ts)
+        {
+            string path = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+
+
+            foreach (string path_bit in new List<string> { "", Program.CompanyName, Program.ApplicationName, "Recordings", ts.Year.ToString("0000"), ts.Month.ToString("00"), ts.Day.ToString("00"), })
+            {
+
+                if (path_bit != "")
+                {
+                    path = System.IO.Path.Combine(path, path_bit);
+                }
+
+                if (!System.IO.Directory.Exists(path))
+                {
+                    System.IO.DirectoryInfo di = System.IO.Directory.CreateDirectory(path);
+
+                    if (!di.Exists)
+                    {
+                        // error
+                        throw new Exception($"Can't create/find folder {path}");
+                    }
+                }
+            }
+
+            return path;
+        }
     }
+
+
+
+
 
     public class Block
     {
@@ -402,5 +451,35 @@ namespace CarsAudioRecorder2
         public string FileName { get; set; }
         public int CurrentSampleCount { get; set; } = 0;
         public int FinalSampleCount { get; set; }
+
+        public int Channel { get; set; }
+
+        public Block(DateTimeOffset startTs, int channel)
+        {
+
+            string path = Program.CreateDateFolder(startTs);
+
+            BlockStartTs = startTs;
+            Channel = channel;
+            FileName = System.IO.Path.Combine(path, Program.GetFileName(startTs, channel));
+
+
+
+            Concentus.Structs.OpusEncoder encoder = Concentus.Structs.OpusEncoder.Create(48000, 1, Concentus.Enums.OpusApplication.OPUS_APPLICATION_AUDIO);
+            encoder.UseVBR = true;
+            encoder.Bitrate = 1024 * 10;
+
+
+            DateTimeOffset NextBlockTs = Program.RoundDownToFiveMinutes(BlockStartTs + TimeSpan.FromMinutes(5) + TimeSpan.FromMinutes(1));
+
+            TimeSpan StartBlockSpan = NextBlockTs - BlockStartTs;
+            FinalSampleCount = (int)(StartBlockSpan.TotalSeconds * 48000);
+
+
+            System.IO.FileStream os = new System.IO.FileStream(FileName, System.IO.FileMode.OpenOrCreate);
+            OggFile = new Concentus.Oggfile.OpusOggWriteStream(encoder, os);
+
+            Program.LogWriteLine($"new block {channel} {FileName}");
+        }
     }
 }
