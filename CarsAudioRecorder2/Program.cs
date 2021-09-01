@@ -321,7 +321,11 @@ namespace CarsAudioRecorder2
 
         public static string GetFileName(DateTimeOffset ts, int channel)
         {
-            return $"recording-{ts.Year:0000}{ts.Month:00}{ts.Day:00}-{ts.Hour:00}{ts.Minute:00}{ts.Second:00}-ch{channel:00}.opus";
+            ts = ts.ToOffset(DateTimeOffset.Now.Offset);
+            string offset_sign = ts.Offset.TotalHours < 0 ? "-" : "+";
+            double offset = Math.Abs(ts.Offset.TotalHours);
+
+            return $"recording-{ts.Year:0000}{ts.Month:00}{ts.Day:00}-{ts.Hour:00}{ts.Minute:00}{ts.Second:00}{offset_sign}{offset}-ch{channel:00}.opus";
         }
 
 
@@ -413,6 +417,8 @@ namespace CarsAudioRecorder2
 
         public static string CreateDateFolder(DateTimeOffset ts)
         {
+            ts = ts.ToOffset(DateTimeOffset.Now.Offset);
+
             string path = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
 
 
@@ -456,6 +462,7 @@ namespace CarsAudioRecorder2
 
         public Block(DateTimeOffset startTs, int channel)
         {
+            startTs = startTs.ToOffset(DateTimeOffset.Now.Offset);
 
             string path = Program.CreateDateFolder(startTs);
 
