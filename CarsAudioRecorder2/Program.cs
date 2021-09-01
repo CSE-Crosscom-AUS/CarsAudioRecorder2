@@ -322,10 +322,8 @@ namespace CarsAudioRecorder2
         public static string GetFileName(DateTimeOffset ts, int channel)
         {
             ts = ts.ToOffset(DateTimeOffset.Now.Offset);
-            string offset_sign = ts.Offset.TotalHours < 0 ? "-" : "+";
-            double offset = Math.Abs(ts.Offset.TotalHours);
 
-            return $"recording-{ts.Year:0000}{ts.Month:00}{ts.Day:00}-{ts.Hour:00}{ts.Minute:00}{ts.Second:00}{offset_sign}{offset}-ch{channel:00}.opus";
+            return $"recording-{ts.Year:0000}{ts.Month:00}{ts.Day:00}-{ts.Hour:00}{ts.Minute:00}{ts.Second:00}{Offset(ts)}-ch{channel:00}.opus";
         }
 
 
@@ -343,9 +341,17 @@ namespace CarsAudioRecorder2
             {
                 DateTimeOffset ts = DateTimeOffset.Now;
                 LogFileDir = new_log_file_dir;
-                LogFileName = System.IO.Path.Combine(LogFileDir, $"recording-{ts.Year:0000}{ts.Month:00}{ts.Day:00}-{ts.Hour}{ts.Minute}{ts.Second}.txt");
+                LogFileName = System.IO.Path.Combine(LogFileDir, $"recording-{ts.Year:0000}{ts.Month:00}{ts.Day:00}-{ts.Hour}{ts.Minute}{ts.Second}{Offset(ts)}.txt");
                 LogFile = new System.IO.StreamWriter(LogFileName);
             }
+        }
+
+        public static string Offset(DateTimeOffset ts)
+        {
+            string offset_sign = ts.Offset.TotalHours < 0 ? "-" : "+";
+            double offset = Math.Abs(ts.Offset.TotalHours);
+
+            return offset_sign + offset;
         }
 
         public static void LogWrite(string s)
