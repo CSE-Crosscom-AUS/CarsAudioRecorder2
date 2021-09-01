@@ -349,9 +349,11 @@ namespace CarsAudioRecorder2
         public static string Offset(DateTimeOffset ts)
         {
             string offset_sign = ts.Offset.TotalHours < 0 ? "-" : "+";
-            double offset = Math.Abs(ts.Offset.TotalHours);
+            int offset_hours = Math.Abs(ts.Offset.Hours);
+            int offset_minutes = ts.Offset.Minutes;
 
-            return offset_sign + offset;
+            //return offset_sign + offset;
+            return $"{offset_sign}{offset_hours:00}{offset_minutes:00}";
         }
 
         public static void LogWrite(string s)
