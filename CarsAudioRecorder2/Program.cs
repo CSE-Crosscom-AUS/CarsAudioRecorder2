@@ -349,7 +349,7 @@ namespace CarsAudioRecorder2
             {
                 DateTimeOffset ts = DateTimeOffset.Now;
                 LogFileDir = new_log_file_dir;
-                LogFileName = System.IO.Path.Combine(LogFileDir, $"recording-{ts.Year:0000}{ts.Month:00}{ts.Day:00}-{ts.Hour}{ts.Minute}{ts.Second}{Offset(ts)}.txt");
+                LogFileName = System.IO.Path.Combine(LogFileDir, $"recording-{ts.Year:0000}{ts.Month:00}{ts.Day:00}-{ts.Hour:00}{ts.Minute:00}{ts.Second:00}{Offset(ts)}.txt");
                 LogFile = new System.IO.StreamWriter(LogFileName);
             }
         }
