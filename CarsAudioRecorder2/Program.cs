@@ -55,15 +55,23 @@ namespace CarsAudioRecorder2
             {
                 foreach (NAudio.CoreAudioApi.MMDevice device in enumerator.EnumerateAudioEndPoints(NAudio.CoreAudioApi.DataFlow.Capture, NAudio.CoreAudioApi.DeviceState.All))
                 {
-                    LogWrite($"{device.FriendlyName}, {device.State}");
-
-                    if (InputDevice == null)
+                    try
                     {
-                        if (device.FriendlyName.Contains("BEHRINGER UMC 404HD") && device.FriendlyName.Contains("1-4"))
+
+                        LogWrite($"{device.FriendlyName}, {device.State}");
+
+                        if (InputDevice == null)
                         {
-                            LogWrite("!!!");
-                            InputDevice = device;
+                            if (device.FriendlyName.Contains("BEHRINGER UMC 404HD") && device.FriendlyName.Contains("1-4"))
+                            {
+                                LogWrite("!!!");
+                                InputDevice = device;
+                            }
                         }
+
+                    }
+                    catch (System.Runtime.InteropServices.COMException)
+                    {
                     }
 
                     LogWriteLine();
