@@ -285,10 +285,10 @@ namespace CarsAudioRecorder2
                     }
 
 
-                    if (Console.KeyAvailable)
-                    {
-                        break;
-                    }
+                    //if (Console.KeyAvailable)
+                    //{
+                    //    break;
+                    //}
                     Thread.Sleep(100);
                 }
 
