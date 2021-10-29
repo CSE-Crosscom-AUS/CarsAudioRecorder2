@@ -18,15 +18,24 @@ namespace CarsAudioRecorder2
         static string LogFileName = "";
         static System.IO.StreamWriter LogFile;
 
-        static string RecordingFolder => MakeSettingsFolder("Recordings");
+        static string RecordingFolder => System.IO.Path.Combine(GetSettingsFolder(), "Recordings");
 
 
 
         private static string last_log_folder = "";
 
+        public static CarsAudioRecorderSettings Settings = new CarsAudioRecorderSettings();
+
 
         static void Main(string[] args)
         {
+            Settings.Load();
+
+            if (!Settings.Validate())
+            {
+                Environment.Exit(1);
+            }
+
             DateTimeOffset CurrentBlockTs = RoundDownToFiveSeconds(DateTimeOffset.Now + TimeSpan.FromSeconds(5));
 
 
@@ -90,7 +99,8 @@ namespace CarsAudioRecorder2
             using (NAudio.CoreAudioApi.WasapiCapture capture = new NAudio.CoreAudioApi.WasapiCapture(InputDevice, false, 1000))
             {
 
-                Block[] CurrentBlocks = new Block[4];
+                //Block[] CurrentBlocks = new Block[4];
+                Block[] CurrentBlocks = new Block[Settings.ChannelCount];
 
 
 
@@ -109,7 +119,7 @@ namespace CarsAudioRecorder2
                     // wait
                 }
 
-                NAudio.Wave.BufferedWaveProvider[] bwp = new NAudio.Wave.BufferedWaveProvider[4];
+                NAudio.Wave.BufferedWaveProvider[] bwp = new NAudio.Wave.BufferedWaveProvider[Settings.ChannelCount];
 
                 for (int i = 0; i < bwp.Length; i++)
                 {
@@ -384,50 +394,33 @@ namespace CarsAudioRecorder2
         }
 
 
-        /// <summary>
-        /// Make a settings folder in ~/AppData/Local or ~/AppData/Roaming
-        /// </summary>
-        /// <param name="name">The name of the subfolder to create. Can be "" for the base folder.</param>
-        /// <param name="roaming">true: use "Local", false: use "Roaming"</param>
-        /// <returns>The full path of the folder</returns>
-        public static string MakeSettingsFolder(string name, string application_name = null, Environment.SpecialFolder folderType = Environment.SpecialFolder.LocalApplicationData)
+        public static string GetSettingsFolder(string appliation_name = null)
         {
-
+            Environment.SpecialFolder folderType = Environment.SpecialFolder.LocalApplicationData;
             string path = Environment.GetFolderPath(folderType);
-
             if (!System.IO.Directory.Exists(path))
             {
                 // bad error
                 return null;
             }
 
-            if (application_name == null)
+
+            if (appliation_name == null)
             {
-                application_name = ApplicationName;
+                appliation_name = ApplicationName;
             }
 
-            foreach (string path_bit in new List<string> { CompanyName, application_name, name })
+            path = System.IO.Path.Combine(path, CompanyName, appliation_name);
+            System.IO.DirectoryInfo di = System.IO.Directory.CreateDirectory(path);
+
+            if (!di.Exists)
             {
-                if (path_bit == "")
-                {
-                    continue;
-                }
-
-                path = System.IO.Path.Combine(path, path_bit);
-
-                if (!System.IO.Directory.Exists(path))
-                {
-                    System.IO.DirectoryInfo di = System.IO.Directory.CreateDirectory(path);
-
-                    if (!di.Exists)
-                    {
-                        // error
-                        return null;
-                    }
-                }
+                // bad error
+                return null;
             }
 
-            return path;
+            //return path;
+            return di.FullName;
         }
 
 
