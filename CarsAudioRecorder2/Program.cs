@@ -94,229 +94,254 @@ namespace CarsAudioRecorder2
         public static void Record(NAudio.CoreAudioApi.MMDevice InputDevice, DateTimeOffset StartTimeTs)
         {
 
-            short[] silence = new short[2000];
-
-            using (NAudio.CoreAudioApi.WasapiCapture capture = new NAudio.CoreAudioApi.WasapiCapture(InputDevice, false, 1000))
+            try
             {
+                short[] silence = new short[2000];
 
-                //Block[] CurrentBlocks = new Block[4];
-                Block[] CurrentBlocks = new Block[Settings.ChannelCount];
-
-
-
-                for (int i = 0; i < CurrentBlocks.Length; i++)
+                using (NAudio.CoreAudioApi.WasapiCapture capture = new NAudio.CoreAudioApi.WasapiCapture(InputDevice, false, 1000))
                 {
 
-
-                    CurrentBlocks[i] = new Block(StartTimeTs, i);
-
-                    LogWriteLine($"new Block {CurrentBlocks[i].Channel} {CurrentBlocks[i].BlockStartTs} {CurrentBlocks[i].FinalSampleCount}");
-                }
-
-
-                while (StartTimeTs < RoundDownToFiveSeconds(DateTimeOffset.Now))
-                {
-                    // wait
-                }
-
-                NAudio.Wave.BufferedWaveProvider[] bwp = new NAudio.Wave.BufferedWaveProvider[Settings.ChannelCount];
-
-                for (int i = 0; i < bwp.Length; i++)
-                {
-                    bwp[i] = new NAudio.Wave.BufferedWaveProvider(capture.WaveFormat);
-                    bwp[i].BufferDuration = TimeSpan.FromSeconds(12);
-                    bwp[i].ReadFully = false;
-                }
-
-
-                int opus_frame_length = 48000 * 12;
-
-
-                int channel_count;
-
-                channel_count = 4;
-                NAudio.Wave.WaveFormat opus_format4 = NAudio.Wave.WaveFormat.CreateCustomFormat(NAudio.Wave.WaveFormatEncoding.Pcm, 48000, channel_count, 48000 * channel_count * 2, channel_count * 2, 16);
-
-                channel_count = 1;
-                NAudio.Wave.WaveFormat opus_format1 = NAudio.Wave.WaveFormat.CreateCustomFormat(NAudio.Wave.WaveFormatEncoding.Pcm, 48000, channel_count, 48000 * channel_count * 2, channel_count * 2, 16);
+                    //Block[] CurrentBlocks = new Block[4];
+                    Block[] CurrentBlocks = new Block[Settings.ChannelCount];
 
 
 
-                byte[] buffer = new byte[capture.WaveFormat.BitsPerSample * capture.WaveFormat.Channels / 8 + 1000];
-
-                short[] pcm_buffer = new short[opus_frame_length];
-
-
-                object wave_lock = new object();
-
-                BlockingCollection<(byte[], int)> queue = new BlockingCollection<(byte[], int)>(new ConcurrentQueue<(byte[], int)>());
-
-                capture.DataAvailable += (object sender, NAudio.Wave.WaveInEventArgs e) =>
-                {
-                    byte[] buffer2 = new byte[e.BytesRecorded];
-
-                    Buffer.BlockCopy(e.Buffer, 0, buffer2, 0, e.BytesRecorded);
-
-                    queue.Add((buffer2, e.BytesRecorded));
-                };
-
-                Thread thread = new Thread(() =>
-                {
-                    while (true)
+                    for (int i = 0; i < CurrentBlocks.Length; i++)
                     {
-                        (byte[] buffer3, int bytesRecorded) = queue.Take();
+
+
+                        CurrentBlocks[i] = new Block(StartTimeTs, i);
+
+                        LogWriteLine($"new Block {CurrentBlocks[i].Channel} {CurrentBlocks[i].BlockStartTs} {CurrentBlocks[i].FinalSampleCount}");
+                    }
+
+
+                    while (StartTimeTs < RoundDownToFiveSeconds(DateTimeOffset.Now))
+                    {
+                        // wait
+                    }
+
+                    NAudio.Wave.BufferedWaveProvider[] bwp = new NAudio.Wave.BufferedWaveProvider[Settings.ChannelCount];
+
+                    for (int i = 0; i < bwp.Length; i++)
+                    {
+                        bwp[i] = new NAudio.Wave.BufferedWaveProvider(capture.WaveFormat);
+                        bwp[i].BufferDuration = TimeSpan.FromSeconds(12);
+                        bwp[i].ReadFully = false;
+                    }
+
+
+                    int opus_frame_length = 48000 * 12;
+
+
+                    int channel_count;
+
+                    channel_count = 4;
+                    NAudio.Wave.WaveFormat opus_format4 = NAudio.Wave.WaveFormat.CreateCustomFormat(NAudio.Wave.WaveFormatEncoding.Pcm, 48000, channel_count, 48000 * channel_count * 2, channel_count * 2, 16);
+
+                    channel_count = 1;
+                    NAudio.Wave.WaveFormat opus_format1 = NAudio.Wave.WaveFormat.CreateCustomFormat(NAudio.Wave.WaveFormatEncoding.Pcm, 48000, channel_count, 48000 * channel_count * 2, channel_count * 2, 16);
+
+
+
+                    byte[] buffer = new byte[capture.WaveFormat.BitsPerSample * capture.WaveFormat.Channels / 8 + 1000];
+
+                    short[] pcm_buffer = new short[opus_frame_length];
+
+
+                    object wave_lock = new object();
+
+                    BlockingCollection<(byte[], int)> queue = new BlockingCollection<(byte[], int)>(new ConcurrentQueue<(byte[], int)>());
+
+                    capture.RecordingStopped += (object sender, NAudio.Wave.StoppedEventArgs e) =>
+                    {
+                        Console.WriteLine("Stopped!");
+                        //Environment.Exit(-1);
 
                         lock (wave_lock)
                         {
                             for (int i = 0; i < bwp.Length; i++)
                             {
-                                bwp[i].AddSamples(buffer3, 0, bytesRecorded);
+                                CurrentBlocks[i].OggFile.Finish();
+                            }
+                        }
+                        Environment.Exit(-1);
+                    };
+
+                    capture.DataAvailable += (object sender, NAudio.Wave.WaveInEventArgs e) =>
+                    {
+                        byte[] buffer2 = new byte[e.BytesRecorded];
+
+                        Buffer.BlockCopy(e.Buffer, 0, buffer2, 0, e.BytesRecorded);
+
+                        queue.Add((buffer2, e.BytesRecorded));
+                    };
+
+                    Thread thread = new Thread(() =>
+                    {
+                        while (true)
+                        {
+                            (byte[] buffer3, int bytesRecorded) = queue.Take();
 
 
-                                if (bwp[i].BufferedBytes >= bwp[i].WaveFormat.AverageBytesPerSecond * 10)
+                            lock (wave_lock)
+                            {
+                                for (int i = 0; i < bwp.Length; i++)
                                 {
-                                    NAudio.Wave.ResamplerDmoStream rds = new NAudio.Wave.ResamplerDmoStream(bwp[i], opus_format4);
+                                    bwp[i].AddSamples(buffer3, 0, bytesRecorded);
 
 
-                                    NAudio.Wave.MultiplexingWaveProvider mwp2 = new NAudio.Wave.MultiplexingWaveProvider(new NAudio.Wave.IWaveProvider[] { rds, }, 1);
-                                    mwp2.ConnectInputToOutput(i, 0);
-
-                                    while (true)
+                                    if (bwp[i].BufferedBytes >= bwp[i].WaveFormat.AverageBytesPerSecond * 10)
                                     {
+                                        NAudio.Wave.ResamplerDmoStream rds = new NAudio.Wave.ResamplerDmoStream(bwp[i], opus_format4);
 
-                                        int count = mwp2.Read(buffer, 0, buffer.Length);
 
-                                        if (count == 0)
+                                        NAudio.Wave.MultiplexingWaveProvider mwp2 = new NAudio.Wave.MultiplexingWaveProvider(new NAudio.Wave.IWaveProvider[] { rds, }, 1);
+                                        mwp2.ConnectInputToOutput(i, 0);
+
+                                        while (true)
                                         {
-                                            break;
-                                        }
 
+                                            int count = mwp2.Read(buffer, 0, buffer.Length);
 
-                                        short[] sdata = new short[count / 2];
-                                        Buffer.BlockCopy(buffer, 0, sdata, 0, count);
-
-                                        short max = 0;
-                                        for (int si = 0; si < sdata.Length; si++)
-                                        {
-                                            max = Math.Max(max, Math.Abs(sdata[si]));
-                                        }
-
-
-                                        int sample_count = count / 2;
-
-
-
-
-                                        int block_remaining_samples = CurrentBlocks[i].FinalSampleCount - CurrentBlocks[i].CurrentSampleCount;
-
-                                        int step_one_sample_count;
-
-                                        if (block_remaining_samples >= sample_count)
-                                        {
-                                            step_one_sample_count = sample_count;
-                                        }
-                                        else
-                                        {
-                                            step_one_sample_count = block_remaining_samples;
-                                        }
-
-                                        int step_two_sample_count = sample_count - step_one_sample_count;
-
-
-
-                                        if (max < 500)
-                                        {
-                                            CurrentBlocks[i].OggFile.WriteSamples(silence, 0, step_one_sample_count);
-                                        }
-                                        else
-                                        {
-                                            CurrentBlocks[i].OggFile.WriteSamples(sdata, 0, step_one_sample_count);
-                                        }
-                                        CurrentBlocks[i].CurrentSampleCount += step_one_sample_count;
-
-
-                                        if (CurrentBlocks[i].CurrentSampleCount >= CurrentBlocks[i].FinalSampleCount)
-                                        {
-                                            if (CurrentBlocks[i].CurrentSampleCount > CurrentBlocks[i].FinalSampleCount)
+                                            if (count == 0)
                                             {
-                                                LogFile.WriteLine("This should never happen");
+                                                break;
                                             }
 
-                                            LogWriteLine($"finishing Block {i} {CurrentBlocks[i].CurrentSampleCount} {CurrentBlocks[i].FinalSampleCount}");
 
-                                            CurrentBlocks[i].OggFile.Finish();
-                                            Block oldblock = CurrentBlocks[i];
+                                            short[] sdata = new short[count / 2];
+                                            Buffer.BlockCopy(buffer, 0, sdata, 0, count);
 
-                                            DateTimeOffset new_block_start_ts = RoundDownToFiveMinutes(oldblock.BlockStartTs + TimeSpan.FromMinutes(5));
+                                            short max = 0;
+                                            for (int si = 0; si < sdata.Length; si++)
+                                            {
+                                                max = Math.Max(max, Math.Abs(sdata[si]));
+                                            }
 
-                                            CurrentBlocks[i] = new Block(new_block_start_ts, i);
+
+                                            int sample_count = count / 2;
 
 
-                                            LogWriteLine($"new Block {i} {CurrentBlocks[i].BlockStartTs} {CurrentBlocks[i].FinalSampleCount}");
+
+
+                                            int block_remaining_samples = CurrentBlocks[i].FinalSampleCount - CurrentBlocks[i].CurrentSampleCount;
+
+                                            int step_one_sample_count;
+
+                                            if (block_remaining_samples >= sample_count)
+                                            {
+                                                step_one_sample_count = sample_count;
+                                            }
+                                            else
+                                            {
+                                                step_one_sample_count = block_remaining_samples;
+                                            }
+
+                                            int step_two_sample_count = sample_count - step_one_sample_count;
 
 
 
                                             if (max < 500)
                                             {
-                                                CurrentBlocks[i].OggFile.WriteSamples(silence, step_one_sample_count, step_two_sample_count);
+                                                CurrentBlocks[i].OggFile.WriteSamples(silence, 0, step_one_sample_count);
                                             }
                                             else
                                             {
-                                                CurrentBlocks[i].OggFile.WriteSamples(sdata, step_one_sample_count, step_two_sample_count);
+                                                CurrentBlocks[i].OggFile.WriteSamples(sdata, 0, step_one_sample_count);
                                             }
-                                            CurrentBlocks[i].CurrentSampleCount += step_two_sample_count;
+                                            CurrentBlocks[i].CurrentSampleCount += step_one_sample_count;
+
+
+                                            if (CurrentBlocks[i].CurrentSampleCount >= CurrentBlocks[i].FinalSampleCount)
+                                            {
+                                                if (CurrentBlocks[i].CurrentSampleCount > CurrentBlocks[i].FinalSampleCount)
+                                                {
+                                                    LogFile.WriteLine("This should never happen");
+                                                }
+
+                                                LogWriteLine($"finishing Block {i} {CurrentBlocks[i].CurrentSampleCount} {CurrentBlocks[i].FinalSampleCount}");
+
+                                                CurrentBlocks[i].OggFile.Finish();
+                                                Block oldblock = CurrentBlocks[i];
+
+                                                DateTimeOffset new_block_start_ts = RoundDownToFiveMinutes(oldblock.BlockStartTs + TimeSpan.FromMinutes(5));
+
+                                                CurrentBlocks[i] = new Block(new_block_start_ts, i);
+
+
+                                                LogWriteLine($"new Block {i} {CurrentBlocks[i].BlockStartTs} {CurrentBlocks[i].FinalSampleCount}");
+
+
+
+                                                if (max < 500)
+                                                {
+                                                    CurrentBlocks[i].OggFile.WriteSamples(silence, step_one_sample_count, step_two_sample_count);
+                                                }
+                                                else
+                                                {
+                                                    CurrentBlocks[i].OggFile.WriteSamples(sdata, step_one_sample_count, step_two_sample_count);
+                                                }
+                                                CurrentBlocks[i].CurrentSampleCount += step_two_sample_count;
+
+                                            }
 
                                         }
-
                                     }
                                 }
                             }
                         }
-                    }
-                });
-                thread.IsBackground = true;
-                thread.Name = "Encoding thread";
-                thread.Start();
+                    });
+                    thread.IsBackground = true;
+                    thread.Name = "Encoding thread";
+                    thread.Start();
 
 
-                capture.StartRecording();
-                DateTimeOffset start = DateTimeOffset.Now;
-                DateTimeOffset last_report = DateTimeOffset.MinValue;
-                TimeSpan span = TimeSpan.FromMinutes(1);
+                    capture.StartRecording();
+                    DateTimeOffset start = DateTimeOffset.Now;
+                    DateTimeOffset last_report = DateTimeOffset.MinValue;
+                    TimeSpan span = TimeSpan.FromMinutes(1);
 
-                while (true)
-                {
-                    DateTimeOffset now = DateTimeOffset.Now;
-
-                    if (last_report + span < now)
+                    while (true)
                     {
-                        LogWriteLine($"{(now - start).TotalMinutes} minutes elapsed");
-                        last_report = now;
+                        DateTimeOffset now = DateTimeOffset.Now;
+
+                        if (last_report + span < now)
+                        {
+                            LogWriteLine($"{(now - start).TotalMinutes} minutes elapsed");
+                            last_report = now;
+                        }
+
+
+                        //if (Console.KeyAvailable)
+                        //{
+                        //    break;
+                        //}
+                        Thread.Sleep(100);
                     }
 
 
-                    //if (Console.KeyAvailable)
-                    //{
-                    //    break;
-                    //}
-                    Thread.Sleep(100);
-                }
+                    capture.StopRecording();
+                    LogWriteLine($"recorded for {DateTimeOffset.Now - start}");
 
 
-                capture.StopRecording();
-                LogWriteLine($"recorded for {DateTimeOffset.Now - start}");
-
-
-                lock (wave_lock)
-                {
-                    for (int i = 0; i < CurrentBlocks.Length; i++)
+                    lock (wave_lock)
                     {
-                        CurrentBlocks[i]?.OggFile?.Finish();
+                        for (int i = 0; i < CurrentBlocks.Length; i++)
+                        {
+                            CurrentBlocks[i]?.OggFile?.Finish();
+                        }
                     }
+
+
+                    LogWriteLine("end!");
                 }
-
-
-                LogWriteLine("end!");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Failed to initialize recording {ex}");
+                Console.WriteLine(ex.StackTrace);
+                Environment.Exit(-2);
             }
         }
 
