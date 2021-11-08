@@ -1,0 +1,24 @@
+We're using WinSW, downloaded from https://github.com/winsw/winsw/releases
+Initial configuration/testing done with version WinSW v2.11.0
+WinSW.exe was renanbed CarsAudioRecorder2Service.exe
+The service is configured in the file CarsAudioRecorder2Service.xml
+
+
+To install service, run
+
+    CarsAudioRecorder2.exe install /P
+
+This will prompt for the username and password of the user the service will run as
+
+
+To start service, run
+
+    CarsAudioRecorder2.exe start
+
+To stop service, run
+
+    CarsAudioRecorder2.exe stop
+
+To uninstall service, run
+
+    CarsAudioRecorder2.exe uninstall
